@@ -1,0 +1,619 @@
+import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Calendar, formatDateKey } from "@/components/ui/calendar";
+import { ScheduleItem } from "./ScheduleItem";
+import { useSchedule } from "@/hooks/useSchedule";
+import { useTags, DEFAULT_COLORS } from "@/hooks/useTags";
+import { useEffortLog } from "@/hooks/useEffortLog";
+import { Plus, CalendarDays, AlertTriangle, ListTodo, X, Tag } from "lucide-react";
+
+interface ScheduleListProps {
+  className?: string;
+  selectedDate?: Date | null;
+  onDateSelect?: (date: Date | null) => void;
+}
+
+export function ScheduleList({ className, selectedDate, onDateSelect }: ScheduleListProps) {
+  const {
+    schedules,
+    addSchedule,
+    updateSchedule,
+    deleteSchedule,
+    toggleComplete,
+    getUpcoming,
+    getOverdue,
+    getSchedulesByDate,
+    getDatesWithSchedules,
+  } = useSchedule();
+  const { tags, addTag, deleteTag: deleteTagFromList } = useTags();
+  const { addActivity } = useEffortLog();
+
+  const handleDeleteTag = (tagId: string) => {
+    // Remove the tag from all schedules that reference it
+    schedules.forEach((schedule) => {
+      const updatedTags = schedule.tags.filter((tag) => tag.id !== tagId);
+      if (updatedTags.length !== schedule.tags.length) {
+        updateSchedule(schedule.id, { tags: updatedTags });
+      }
+    });
+    // Then delete the tag itself
+    deleteTagFromList(tagId);
+  };
+
+  const [isAddingSchedule, setIsAddingSchedule] = useState(false);
+  const [isEditingSchedule, setIsEditingSchedule] = useState(false);
+  const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
+
+  const [newTitle, setNewTitle] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [newDueDate, setNewDueDate] = useState(
+    selectedDate ? formatDateKey(selectedDate) : new Date().toISOString().split("T")[0],
+  );
+
+  const [showTagManager, setShowTagManager] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState(DEFAULT_COLORS[0]);
+  const [currentMode, setCurrentMode] = useState<"task" | "schedule">("task");
+  const [newEndDate, setNewEndDate] = useState("");
+  const [validationError, setValidationError] = useState("");
+  const [newItemColor, setNewItemColor] = useState(DEFAULT_COLORS[0]);
+
+  const datesWithEvents = getDatesWithSchedules();
+  const filteredSchedules = selectedDate ? getSchedulesByDate(selectedDate) : null;
+  const upcoming = getUpcoming(14);
+  const overdue = getOverdue();
+
+  const handleAddTag = () => {
+    if (!newTagName.trim()) return;
+    addTag({ name: newTagName.trim(), color: newTagColor });
+    setNewTagName("");
+    setNewTagColor(DEFAULT_COLORS[0]);
+  };
+
+  const handleToggleTagSelection = (tagId: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId],
+    );
+  };
+
+  const resetScheduleForm = () => {
+    setNewTitle("");
+    setNewDescription("");
+    setSelectedTags([]);
+    setNewDueDate(new Date().toISOString().split("T")[0]);
+    setNewEndDate("");
+    setCurrentMode("task");
+    setValidationError("");
+    setNewItemColor(DEFAULT_COLORS[0]);
+  };
+
+  const validateSchedule = (): boolean => {
+    if (currentMode === "schedule" && newEndDate) {
+      const dueDate = new Date(newDueDate);
+      const endDate = new Date(newEndDate);
+      if (endDate < dueDate) {
+        setValidationError("終了日は開始日以降である必要があります");
+        return false;
+      }
+    }
+    setValidationError("");
+    return true;
+  };
+
+  const handleAdd = () => {
+    if (!newTitle.trim()) return;
+    if (!validateSchedule()) return;
+
+    const selectedTagObjects = tags.filter((tag) => selectedTags.includes(tag.id));
+
+    addSchedule({
+      title: newTitle.trim(),
+      description: newDescription.trim() || undefined,
+      mode: currentMode,
+      tags: selectedTagObjects,
+      dueDate: new Date(newDueDate),
+      endDate: currentMode === "schedule" && newEndDate ? new Date(newEndDate) : undefined,
+      color: newItemColor,
+    });
+
+    addActivity({
+      type: "custom",
+      description: `「${newTitle.trim()}」を追加`,
+    });
+
+    resetScheduleForm();
+    setIsAddingSchedule(false);
+  };
+
+  const handleEdit = (scheduleId: string) => {
+    const schedule = schedules.find((s) => s.id === scheduleId);
+    if (!schedule) return;
+
+    setEditingScheduleId(scheduleId);
+    setNewTitle(schedule.title);
+    setNewDescription(schedule.description || "");
+    setSelectedTags(schedule.tags.map((t) => t.id));
+    setNewDueDate(formatDateKey(schedule.dueDate));
+    setNewEndDate(schedule.endDate ? formatDateKey(schedule.endDate) : "");
+    setCurrentMode(schedule.mode);
+    setNewItemColor(schedule.color || DEFAULT_COLORS[0]);
+    setIsEditingSchedule(true);
+  };
+
+  const handleUpdateSchedule = () => {
+    if (!newTitle.trim() || !editingScheduleId) return;
+    if (!validateSchedule()) return;
+
+    const selectedTagObjects = tags.filter((tag) => selectedTags.includes(tag.id));
+
+    updateSchedule(editingScheduleId, {
+      title: newTitle.trim(),
+      description: newDescription.trim() || undefined,
+      mode: currentMode,
+      tags: selectedTagObjects,
+      dueDate: new Date(newDueDate),
+      endDate: currentMode === "schedule" && newEndDate ? new Date(newEndDate) : undefined,
+      color: newItemColor,
+    });
+
+    resetScheduleForm();
+    setIsEditingSchedule(false);
+    setEditingScheduleId(null);
+  };
+
+  const handleToggleComplete = (id: string) => {
+    const item = schedules.find((s) => s.id === id);
+    if (item && !item.completed) {
+      addActivity({
+        type: "schedule_complete",
+        description: `「${item.title}」を完了`,
+      });
+    }
+    toggleComplete(id);
+  };
+
+  return (
+    <Card className={cn("flex flex-col h-full", className)}>
+      <CardHeader className="flex-shrink-0 flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardTitle className="text-xl flex items-center gap-2">
+          <span className="text-2xl">📅</span>
+          スケジュール
+        </CardTitle>
+        <div className="flex gap-2 items-center">
+          <div className="flex gap-1 bg-muted rounded-md p-1">
+            <button
+              onClick={() => {
+                setCurrentMode("task");
+                setNewEndDate("");
+              }}
+              className={cn(
+                "px-3 py-1 rounded text-xs font-medium transition-colors",
+                currentMode === "task"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              タスク
+            </button>
+            <button
+              onClick={() => setCurrentMode("schedule")}
+              className={cn(
+                "px-3 py-1 rounded text-xs font-medium transition-colors",
+                currentMode === "schedule"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              予定
+            </button>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setShowTagManager(true)}>
+            <Tag className="h-4 w-4 mr-1" />
+            タグ
+          </Button>
+          <Button variant="default" size="sm" onClick={() => setIsAddingSchedule(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            追加
+          </Button>
+        </div>
+      </CardHeader>
+
+      <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
+        {/* Tag Manager Modal */}
+        <Dialog open={showTagManager} onOpenChange={setShowTagManager}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>タグ管理</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <h3 className="text-sm font-medium mb-2">タグ一覧</h3>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {tags.map((tag) => (
+                    <div
+                      key={tag.id}
+                      className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium text-white"
+                      style={{ backgroundColor: tag.color }}
+                    >
+                      {tag.name}
+                      {tag.id !== "tag-1" && (
+                        <button
+                          onClick={() => handleDeleteTag(tag.id)}
+                          className="ml-1 hover:opacity-80"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2 p-2 bg-muted rounded-md">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="タグ名"
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    size={2}
+                    maxLength={20}
+                    className="text-xs flex-1"
+                  />
+                  <div className="flex items-center gap-1">
+                    {DEFAULT_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        onClick={() => setNewTagColor(color)}
+                        className={cn(
+                          "w-6 h-6 rounded-full border-2",
+                          newTagColor === color ? "border-foreground" : "border-transparent",
+                        )}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button size="sm" onClick={handleAddTag} disabled={!newTagName.trim()}>
+                    <Plus className="h-3 w-3 mr-1" />
+                    追加
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Schedule Modal */}
+        <Dialog open={isAddingSchedule} onOpenChange={setIsAddingSchedule}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{currentMode === "task" ? "タスク追加" : "予定追加"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <Input
+                placeholder="タイトル"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                autoFocus
+              />
+              <textarea
+                placeholder="説明（オプション）"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                  {currentMode === "task" ? "期限" : "開始日"}
+                </label>
+                <Input
+                  type="date"
+                  value={newDueDate}
+                  onChange={(e) => setNewDueDate(e.target.value)}
+                />
+              </div>
+              {currentMode === "schedule" && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    終了日（オプション）
+                  </label>
+                  <Input
+                    type="date"
+                    value={newEndDate}
+                    onChange={(e) => setNewEndDate(e.target.value)}
+                  />
+                </div>
+              )}
+              {validationError && (
+                <div className="px-3 py-2 bg-destructive/10 border border-destructive/50 rounded-md">
+                  <p className="text-xs text-destructive">{validationError}</p>
+                </div>
+              )}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">タグを選択</label>
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <button
+                      key={tag.id}
+                      onClick={() => handleToggleTagSelection(tag.id)}
+                      className={cn(
+                        "px-3 py-1 rounded-full text-xs font-medium text-white transition-all border-2",
+                        selectedTags.includes(tag.id)
+                          ? "border-current scale-105"
+                          : "border-transparent opacity-75 hover:opacity-100",
+                      )}
+                      style={{ backgroundColor: tag.color }}
+                    >
+                      {tag.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsAddingSchedule(false);
+                  resetScheduleForm();
+                }}
+              >
+                キャンセル
+              </Button>
+              <Button onClick={handleAdd} disabled={!newTitle.trim()}>
+                追加
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Schedule Modal */}
+        <Dialog open={isEditingSchedule} onOpenChange={setIsEditingSchedule}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{currentMode === "task" ? "タスク編集" : "予定編集"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <Input
+                placeholder="タイトル"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                autoFocus
+              />
+              <textarea
+                placeholder="説明（オプション）"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                  {currentMode === "task" ? "期限" : "開始日"}
+                </label>
+                <Input
+                  type="date"
+                  value={newDueDate}
+                  onChange={(e) => setNewDueDate(e.target.value)}
+                />
+              </div>
+              {currentMode === "schedule" && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    終了日（オプション）
+                  </label>
+                  <Input
+                    type="date"
+                    value={newEndDate}
+                    onChange={(e) => setNewEndDate(e.target.value)}
+                  />
+                </div>
+              )}
+              {validationError && (
+                <div className="px-3 py-2 bg-destructive/10 border border-destructive/50 rounded-md">
+                  <p className="text-xs text-destructive">{validationError}</p>
+                </div>
+              )}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">タグを選択</label>
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <button
+                      key={tag.id}
+                      onClick={() => handleToggleTagSelection(tag.id)}
+                      className={cn(
+                        "px-3 py-1 rounded-full text-xs font-medium text-white transition-all border-2",
+                        selectedTags.includes(tag.id)
+                          ? "border-current scale-105"
+                          : "border-transparent opacity-75 hover:opacity-100",
+                      )}
+                      style={{ backgroundColor: tag.color }}
+                    >
+                      {tag.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsEditingSchedule(false);
+                  resetScheduleForm();
+                }}
+              >
+                キャンセル
+              </Button>
+              <Button onClick={handleUpdateSchedule} disabled={!newTitle.trim()}>
+                保存
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Calendar section */}
+        <div className="px-4 py-3 border-b">
+          <Calendar
+            size="standard"
+            selectedDate={selectedDate}
+            onDateSelect={onDateSelect}
+            datesWithEvents={datesWithEvents}
+          />
+          {selectedDate && (
+            <div className="flex items-center justify-between mt-3 p-2 bg-muted/50 rounded-md">
+              <span className="text-sm font-medium">
+                {selectedDate.toLocaleDateString("ja-JP", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+                の予定
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => onDateSelect?.(null)}
+              >
+                <X className="h-4 w-4 mr-1" />
+                クリア
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <ScrollArea className="flex-1 px-4 pt-4">
+          {/* When filtering by date, show only that date's schedules */}
+          {filteredSchedules ? (
+            <>
+              {filteredSchedules.length > 0 ? (
+                <div className="space-y-2">
+                  {filteredSchedules.map((item) => (
+                    <ScheduleItem
+                      key={item.id}
+                      item={item}
+                      onToggleComplete={() => handleToggleComplete(item.id)}
+                      onDelete={() => deleteSchedule(item.id)}
+                      onEdit={() => handleEdit(item.id)}
+                      viewDate={selectedDate}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <CalendarDays className="h-10 w-10 mb-3 opacity-50" />
+                  <p className="text-sm font-medium">この日の予定はありません</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => {
+                      setNewDueDate(formatDateKey(selectedDate!));
+                      setIsAddingSchedule(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    予定を追加
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {overdue.filter((s) => s.mode === currentMode).length > 0 && (
+                <div className="mb-6">
+                  <h3 className="flex items-center gap-2 text-sm font-medium text-destructive mb-3">
+                    <AlertTriangle className="h-4 w-4" />
+                    期限超過 ({overdue.filter((s) => s.mode === currentMode).length})
+                  </h3>
+                  <div className="space-y-2">
+                    {overdue
+                      .filter((s) => s.mode === currentMode)
+                      .map((item) => (
+                        <ScheduleItem
+                          key={item.id}
+                          item={item}
+                          onToggleComplete={() => handleToggleComplete(item.id)}
+                          onDelete={() => deleteSchedule(item.id)}
+                          onEdit={() => handleEdit(item.id)}
+                        />
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {upcoming.filter((s) => s.mode === currentMode).length > 0 && (
+                <div className="mb-6">
+                  <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
+                    <CalendarDays className="h-4 w-4" />
+                    今後の予定 ({upcoming.filter((s) => s.mode === currentMode).length})
+                  </h3>
+                  <div className="space-y-2">
+                    {upcoming
+                      .filter((s) => s.mode === currentMode)
+                      .map((item) => (
+                        <ScheduleItem
+                          key={item.id}
+                          item={item}
+                          onToggleComplete={() => handleToggleComplete(item.id)}
+                          onDelete={() => deleteSchedule(item.id)}
+                          onEdit={() => handleEdit(item.id)}
+                        />
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {schedules.filter((s) => s.completed && s.mode === currentMode).length > 0 && (
+                <div className="mb-6">
+                  <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
+                    <ListTodo className="h-4 w-4" />
+                    完了済み (
+                    {schedules.filter((s) => s.completed && s.mode === currentMode).length})
+                  </h3>
+                  <div className="space-y-2">
+                    {schedules
+                      .filter((s) => s.completed && s.mode === currentMode)
+                      .slice(0, 5)
+                      .map((item) => (
+                        <ScheduleItem
+                          key={item.id}
+                          item={item}
+                          onToggleComplete={() => handleToggleComplete(item.id)}
+                          onDelete={() => deleteSchedule(item.id)}
+                          onEdit={() => handleEdit(item.id)}
+                        />
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {schedules.filter((s) => s.mode === currentMode).length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <CalendarDays className="h-12 w-12 mb-4 opacity-50" />
+                  <p className="text-lg font-medium">
+                    {currentMode === "task" ? "タスクがありません" : "予定がありません"}
+                  </p>
+                  <p className="text-sm mt-1">「追加」ボタンから作成しましょう</p>
+                </div>
+              )}
+            </>
+          )}
+        </ScrollArea>
+      </CardContent>
+    </Card>
+  );
+}

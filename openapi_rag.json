@@ -1,0 +1,931 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Sakura AI Engine RAG API",
+    "version": "2026-02-25",
+    "description": "さくらのAI Engine RAG API"
+  },
+  "paths": {
+    "/v1/documents/": {
+      "get": {
+        "operationId": "documents_list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "model",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "A page number within the paginated result set.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "required": false,
+            "in": "query",
+            "description": "Number of results to return per page.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedDocumentListList"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/v1/documents/{document_pk}/chunks/": {
+      "get": {
+        "operationId": "document_chunks_list",
+        "description": "ドキュメント配下のチャンク一覧/単体取得用 ViewSet。\n\n- list: /documents/{document_id}/chunks/\n- retrieve: /documents/{document_id}/chunks/{index}/  ← index で取得",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_pk",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "A page number within the paginated result set.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "required": false,
+            "in": "query",
+            "description": "Number of results to return per page.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": ["chunks"],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedDocumentChunkList"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/v1/documents/{document_pk}/chunks/{index}/": {
+      "get": {
+        "operationId": "document_chunks_retrieve",
+        "description": "ドキュメント配下のチャンク一覧/単体取得用 ViewSet。\n\n- list: /documents/{document_id}/chunks/\n- retrieve: /documents/{document_id}/chunks/{index}/  ← index で取得",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_pk",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "index",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d+$"
+            },
+            "required": true
+          }
+        ],
+        "tags": ["chunks"],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentChunk"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/v1/documents/{id}/": {
+      "get": {
+        "operationId": "documents_retrieve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A UUID string identifying this document.",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "put": {
+        "operationId": "documents_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A UUID string identifying this document.",
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Document"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "delete": {
+        "operationId": "documents_destroy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "A UUID string identifying this document.",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
+    "/v1/documents/chat/": {
+      "post": {
+        "operationId": "documents_chat",
+        "tags": ["chat"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatQueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResult"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/v1/documents/query/": {
+      "post": {
+        "operationId": "documents_query",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "model",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "tags": ["query"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedQueryResultChunkList"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/v1/documents/upload/": {
+      "post": {
+        "operationId": "documents_upload",
+        "tags": ["upload"],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentUpload"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentUpload"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentUpload"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChatResult": {
+        "type": "object",
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatResultSource"
+            },
+            "readOnly": true
+          }
+        },
+        "required": ["answer", "sources"]
+      },
+      "ChatResultSource": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/QueryResultChunk"
+          },
+          {
+            "$ref": "#/components/schemas/QueryResultDocument"
+          }
+        ]
+      },
+      "DistanceTypeEnum": {
+        "enum": ["cosine", "l2"],
+        "type": "string",
+        "description": "* `cosine` - cosine\n* `l2` - l2"
+      },
+      "Document": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StatusEnum"
+              }
+            ],
+            "readOnly": true,
+            "title": "ステータス"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "model": {
+            "type": "string",
+            "readOnly": true
+          },
+          "chunk_size": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "chunk_count": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "content": {
+            "type": "string",
+            "readOnly": true
+          },
+          "error_message": {
+            "type": "string",
+            "readOnly": true
+          }
+        },
+        "required": [
+          "chunk_count",
+          "chunk_size",
+          "content",
+          "created_at",
+          "error_message",
+          "id",
+          "model",
+          "name",
+          "status"
+        ]
+      },
+      "DocumentChunk": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DocumentList"
+              }
+            ],
+            "readOnly": true
+          },
+          "chunk_index": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "content": {
+            "type": "string",
+            "readOnly": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true,
+            "readOnly": true
+          }
+        },
+        "required": ["chunk_index", "content", "document", "metadata"]
+      },
+      "DocumentList": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StatusEnum"
+              }
+            ],
+            "readOnly": true,
+            "title": "ステータス"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "model": {
+            "type": "string",
+            "readOnly": true
+          },
+          "chunk_size": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "chunk_count": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "error_message": {
+            "type": "string",
+            "readOnly": true
+          }
+        },
+        "required": [
+          "chunk_count",
+          "chunk_size",
+          "created_at",
+          "error_message",
+          "id",
+          "model",
+          "name",
+          "status"
+        ]
+      },
+      "DocumentUpload": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StatusEnum"
+              }
+            ],
+            "readOnly": true,
+            "title": "ステータス"
+          },
+          "content": {
+            "type": "string",
+            "readOnly": true
+          },
+          "file": {
+            "type": "string",
+            "format": "uri",
+            "writeOnly": true
+          },
+          "name": {
+            "type": "string",
+            "description": "未指定の場合はアップロードされたファイル名が使用されます。",
+            "maxLength": 255
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "model": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModelEnum"
+              }
+            ],
+            "description": "ベクトル化に利用するモデル。\n\n* `multilingual-e5-large` - multilingual-e5-large\n* `preview/Qwen3-Embedding-4B-FP16` - preview/Qwen3-Embedding-4B-FP16"
+          },
+          "chunk_size": {
+            "type": "integer",
+            "description": "モデルによって最大値が異なります。未指定の場合はモデルのデフォルト値が設定されます。"
+          }
+        },
+        "required": ["content", "file", "id", "status"]
+      },
+      "ModelEnum": {
+        "enum": ["multilingual-e5-large", "preview/Qwen3-Embedding-4B-FP16"],
+        "type": "string",
+        "description": "* `multilingual-e5-large` - multilingual-e5-large\n* `preview/Qwen3-Embedding-4B-FP16` - preview/Qwen3-Embedding-4B-FP16"
+      },
+      "PaginatedDocumentChunkList": {
+        "type": "object",
+        "properties": {
+          "meta": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "count": {
+                "type": "integer"
+              },
+              "next": {
+                "type": "string",
+                "format": "uri",
+                "nullable": true
+              },
+              "previous": {
+                "type": "string",
+                "format": "uri",
+                "nullable": true
+              }
+            },
+            "required": ["page", "page_size", "total_pages", "count", "next", "previous"]
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentChunk"
+            }
+          }
+        },
+        "required": ["meta", "results"]
+      },
+      "PaginatedDocumentListList": {
+        "type": "object",
+        "properties": {
+          "meta": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "count": {
+                "type": "integer"
+              },
+              "next": {
+                "type": "string",
+                "format": "uri",
+                "nullable": true
+              },
+              "previous": {
+                "type": "string",
+                "format": "uri",
+                "nullable": true
+              }
+            },
+            "required": ["page", "page_size", "total_pages", "count", "next", "previous"]
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentList"
+            }
+          }
+        },
+        "required": ["meta", "results"]
+      },
+      "PaginatedQueryResultChunkList": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QueryResultChunk"
+            }
+          }
+        },
+        "required": ["results"]
+      },
+      "ChatQueryRequest": {
+        "type": "object",
+        "properties": {
+          "distance_type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DistanceTypeEnum"
+              }
+            ],
+            "default": "cosine",
+            "description": "類似度計算に使用する距離メトリクスです。\n* `cosine`: コサイン距離\n* `l2`: L2距離（ユークリッド距離）\n\n* `cosine` - cosine\n* `l2` - l2"
+          },
+          "model": {
+            "type": "string",
+            "default": "multilingual-e5-large",
+            "description": "検索時に使用する埋め込みモデルを指定します。\n指定したモデルでクエリおよびドキュメントの埋め込みを生成し、\n類似度検索を行います。(利用可能なモデルはコントロールパネル等をご確認ください。)",
+            "maxLength": 255
+          },
+          "chat_model": {
+            "type": "string",
+            "description": "回答生成に使用するチャットモデルを指定します。\n検索結果をもとに、このモデルを用いて回答文を生成します。(利用可能なモデルはコントロールパネル等をご確認ください。)",
+            "maxLength": 255
+          },
+          "query": {
+            "type": "string",
+            "description": "質問文を指定します。\n指定されたクエリは検索および回答生成の両方に使用されます。",
+            "maxLength": 1000
+          },
+          "prompt": {
+            "type": "string",
+            "description": "回答生成時の`system_prompt`に追加されるカスタム指示文を指定します。\n口調の指定や回答形式の制御などに利用できます。\n未指定の場合は、デフォルトのsystem_promptが使用されます。",
+            "maxLength": 2000
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "検索対象にするタグを指定します。\n指定したタグが含まれるドキュメントのみが検索対象となります。\n複数指定した場合はすべてのタグが指定されているドキュメントのみ対象となります。"
+          },
+          "top_k": {
+            "type": "integer",
+            "maximum": 100,
+            "minimum": 1,
+            "default": 5,
+            "description": "検索結果として取得する最大件数を指定します。\n類似度の高いドキュメントから順に、この件数分が使用されます。"
+          },
+          "threshold": {
+            "type": "number",
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "default": 0.3,
+            "description": "類似度の閾値を指定します。\nこの値よりも類似度が低いドキュメントは検索結果から除外されます。"
+          },
+          "use_full_content": {
+            "type": "boolean",
+            "default": false,
+            "description": "trueの場合は、ドキュメント全文をコンテキストとして使用します。\nfalseの場合は、分割されたチャンク単位で検索・回答生成を行います。"
+          }
+        },
+        "required": ["chat_model", "query"]
+      },
+      "QueryRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "default": "multilingual-e5-large",
+            "description": "クエリのベクトル化に利用するモデル。",
+            "maxLength": 255
+          },
+          "query": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "description": "すべてのタグを持つドキュメントのみ対象。"
+          },
+          "top_k": {
+            "type": "integer",
+            "maximum": 100,
+            "minimum": 1,
+            "default": 3,
+            "description": "返す検索結果の最大件数。"
+          },
+          "threshold": {
+            "type": "number",
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "default": 0.3,
+            "description": "類似度のしきい値。この值よりも類似度が低いドキュメントは検索結果から除外されます。"
+          },
+          "distance_type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DistanceTypeEnum"
+              }
+            ],
+            "default": "cosine",
+            "description": "類似度計算に使用する距離メトリクスです。\n* `cosine`: コサイン距離。テキストの類似度測定に適しており、値の範囲は0〜2（0が完全に一致）です。\n* `l2`: L2距離（ユークリッド距離）。ベクトル空間での直線距離で、数値データの類似度測定に適しています。値の範囲は0〜∞（0が完全に一致）です。\n\n* `cosine` - cosine\n* `l2` - l2"
+          }
+        },
+        "required": ["query"]
+      },
+      "QueryResultChunk": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DocumentList"
+              }
+            ],
+            "readOnly": true
+          },
+          "chunk_index": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "distance": {
+            "type": "number",
+            "format": "double",
+            "readOnly": true
+          },
+          "content": {
+            "type": "string",
+            "readOnly": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {},
+            "readOnly": true
+          }
+        },
+        "required": ["chunk_index", "content", "distance", "document", "metadata"]
+      },
+      "QueryResultDocument": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string",
+            "readOnly": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "model": {
+            "type": "string",
+            "readOnly": true
+          },
+          "chunk_size": {
+            "type": "integer",
+            "readOnly": true
+          },
+          "distance": {
+            "type": "number",
+            "format": "double",
+            "readOnly": true
+          },
+          "content": {
+            "type": "string",
+            "readOnly": true
+          }
+        },
+        "required": ["chunk_size", "content", "distance", "id", "model", "name"]
+      },
+      "StatusEnum": {
+        "enum": ["pending", "processing", "available", "deleted", "error"],
+        "type": "string",
+        "description": "* `pending` - Pending\n* `processing` - Processing\n* `available` - Available\n* `deleted` - Deleted\n* `error` - Error"
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": " https://api.ai.sakura.ad.jp"
+    }
+  ]
+}

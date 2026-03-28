@@ -1,0 +1,228 @@
+@import "tailwindcss";
+
+/*
+ * ============================================================================
+ * BOLD MINIMALISM THEME - Light/Dark Mode Support
+ * ============================================================================
+ * Design Philosophy:
+ * - Layered surfaces: Multiple depth levels using subtle luminosity differences
+ * - Bold Minimalism: Strong typography, generous whitespace, focused interactions
+ * - WCAG 2.1 AAA: 7:1 contrast ratio for normal text, 4.5:1 for large text
+ * ============================================================================
+ */
+
+@theme {
+  /* ========================================================================
+   * DESIGN TOKENS - Spacing & Radius (Theme-independent)
+   * ======================================================================== */
+  --radius-lg: 1rem;
+  --radius-md: 0.75rem;
+  --radius-sm: 0.5rem;
+
+  /* ========================================================================
+   * TYPOGRAPHY - Bold Sans-Serif System
+   * ======================================================================== */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* ========================================================================
+   * DEFAULT (DARK) THEME COLORS
+   * Applied when no theme class or .dark class is present
+   * ======================================================================== */
+
+  /* Grass Activity Colors */
+  --color-grass-0: oklch(0.25 0.01 260);
+  --color-grass-1: oklch(0.45 0.12 155);
+  --color-grass-2: oklch(0.55 0.15 155);
+  --color-grass-3: oklch(0.65 0.18 155);
+  --color-grass-4: oklch(0.75 0.2 155);
+
+  /* Primary - Emerald Accent */
+  --color-primary: oklch(0.7 0.17 160);
+  --color-primary-foreground: oklch(0.15 0.02 260);
+
+  /* Secondary - Elevated surface */
+  --color-secondary: oklch(0.28 0.015 260);
+  --color-secondary-foreground: oklch(0.9 0.01 260);
+
+  /* Muted - Subtle text */
+  --color-muted: oklch(0.25 0.01 260);
+  --color-muted-foreground: oklch(0.65 0.02 260);
+
+  /* Accent - Hover states */
+  --color-accent: oklch(0.32 0.02 260);
+  --color-accent-foreground: oklch(0.92 0.01 260);
+
+  /* Destructive - Error states */
+  --color-destructive: oklch(0.6 0.22 25);
+  --color-destructive-foreground: oklch(0.98 0 0);
+
+  /* Borders & Inputs */
+  --color-border: oklch(0.3 0.015 260);
+  --color-input: oklch(0.22 0.015 260);
+  --color-ring: oklch(0.7 0.17 160);
+
+  /* Background Layers - Midnight Blue (#1A1A2E) */
+  --color-background: oklch(0.18 0.02 260);
+  --color-foreground: oklch(0.9 0.01 260);
+
+  --color-card: oklch(0.22 0.02 260);
+  --color-card-foreground: oklch(0.9 0.01 260);
+
+  --color-popover: oklch(0.25 0.02 260);
+  --color-popover-foreground: oklch(0.92 0.01 260);
+}
+
+/* ============================================================================
+ * LIGHT THEME - Clean, layered whites
+ * ============================================================================ */
+:root.light {
+  /* Grass Activity Colors (Light mode) */
+  --color-grass-0: oklch(0.97 0.005 106);
+  --color-grass-1: oklch(0.92 0.08 148);
+  --color-grass-2: oklch(0.82 0.14 147);
+  --color-grass-3: oklch(0.7 0.17 145);
+  --color-grass-4: oklch(0.55 0.16 150);
+
+  /* Primary - Emerald (darker for light bg) */
+  --color-primary: oklch(0.55 0.18 155);
+  --color-primary-foreground: oklch(0.98 0.005 155);
+
+  /* Secondary - Light elevated surface */
+  --color-secondary: oklch(0.95 0.01 260);
+  --color-secondary-foreground: oklch(0.25 0.02 260);
+
+  /* Muted - Subtle backgrounds */
+  --color-muted: oklch(0.96 0.005 260);
+  --color-muted-foreground: oklch(0.45 0.02 260);
+
+  /* Accent - Hover states */
+  --color-accent: oklch(0.94 0.015 260);
+  --color-accent-foreground: oklch(0.2 0.02 260);
+
+  /* Destructive - Error states */
+  --color-destructive: oklch(0.55 0.22 25);
+  --color-destructive-foreground: oklch(0.98 0 0);
+
+  /* Borders & Inputs */
+  --color-border: oklch(0.88 0.01 260);
+  --color-input: oklch(0.96 0.005 260);
+  --color-ring: oklch(0.55 0.18 155);
+
+  /* Background Layers - Clean white foundation */
+  --color-background: oklch(0.985 0.002 260);
+  --color-foreground: oklch(0.15 0.02 260);
+
+  --color-card: oklch(0.995 0 0);
+  --color-card-foreground: oklch(0.15 0.02 260);
+
+  --color-popover: oklch(0.995 0 0);
+  --color-popover-foreground: oklch(0.12 0.02 260);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    /* Smooth scrolling for better UX */
+    scroll-behavior: smooth;
+    /* Prevent horizontal overflow */
+    overflow-x: hidden;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1,
+      "ss01" 1;
+    /* Enhanced line height for readability */
+    line-height: 1.6;
+    /* Subtle text rendering optimization */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* ========================================================================
+   * FOCUS STATES - WCAG 2.1 AAA Compliant
+   * High visibility focus ring for keyboard navigation
+   * ======================================================================== */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Skip link for screen reader users */
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4;
+    @apply bg-primary text-primary-foreground px-4 py-2 rounded-md z-50;
+  }
+
+  /* ========================================================================
+   * TYPOGRAPHY SCALE - Bold Minimalism
+   * Generous spacing, strong hierarchy
+   * ======================================================================== */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-bold tracking-tight;
+    line-height: 1.2;
+  }
+
+  h1 {
+    @apply text-3xl sm:text-4xl lg:text-5xl;
+  }
+  h2 {
+    @apply text-2xl sm:text-3xl;
+  }
+  h3 {
+    @apply text-xl sm:text-2xl;
+  }
+
+  /* ========================================================================
+   * SELECTION COLORS - Brand consistent
+   * ======================================================================== */
+  ::selection {
+    @apply bg-primary/30 text-foreground;
+  }
+
+  /* ========================================================================
+   * SCROLLBAR STYLING - Subtle dark theme
+   * ======================================================================== */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.3 0.015 260) transparent;
+  }
+}
+
+/* ============================================================================
+ * CUSTOM UTILITIES - Calendar Grid Heights
+ * ============================================================================ */
+@layer utilities {
+  .h-22 {
+    height: 5.5rem; /* 88px - optimal for mobile touch */
+  }
+}

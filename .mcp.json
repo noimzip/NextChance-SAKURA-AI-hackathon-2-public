@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "@modelcontextprotocol/server-playwright",
+        "--launch",
+        "--launch-args=--disable-gpu",
+        "--launch-args=--single-process"
+      ],
+      "env": {
+        "PLAYWRIGHT_HEADLESS": "true",
+        "PLAYWRIGHT_BROWSERS_PATH": "node_modules/.cache/ms-playwright"
+      }
+    }
+  }
+}

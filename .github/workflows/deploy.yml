@@ -1,0 +1,79 @@
+# Vite+ プロジェクト用 GitHub Pages デプロイワークフロー
+name: Deploy Vite+ app to GitHub Pages
+
+on:
+  # main ブランチへのプッシュ時に実行
+  push:
+    branches: ["develop"]
+
+  # Actions タブから手動実行を許可
+  workflow_dispatch:
+
+# GitHub Pages へのデプロイに必要な権限設定
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同時デプロイは1つまで（進行中のデプロイをキャンセル）
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v5
+
+      - name: pnpm をセットアップ
+        uses: pnpm/action-setup@v4
+
+      - name: Node.js をセットアップ
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: "pnpm"
+
+      - name: node_modules キャッシュを復元
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      - name: Vite+ CLI をグローバルインストール
+        run: npm install -g vite-plus
+
+      - name: プロジェクト依存関係をインストール
+        run: vp install
+
+      - name: コード品質チェック (lint, format, type check)
+        run: vp check
+
+      - name: プロダクションビルド
+        run: vp build
+        env:
+          VITE_SAKURA_AI_API_KEY: ${{ secrets.VITE_SAKURA_AI_API_KEY }}
+          VITE_SAKURA_AI_BASE_URL: ${{ secrets.VITE_SAKURA_AI_BASE_URL }}
+
+      - name: GitHub Pages を設定
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: ビルド成果物をアップロード
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: "./dist"
+
+      - name: GitHub Pages にデプロイ
+        id: deployment
+        uses: actions/deploy-pages@v4
