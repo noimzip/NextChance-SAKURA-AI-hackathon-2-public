@@ -165,3 +165,5 @@ vp dev
 ## 感謝
 
 [kohaneko1219](https://github.com/kohaneko1219) & [Kanzakimasaru0418](https://github.com/Kanzakimasaru0418) 彼らがいなければ、このプロダクトの開発をすることはできませんでした。彼らに敬意を払い、ここに記します。
+
+リーダー(みんながちゃんと動いてくれたので特になにもしてない)・開発(AIに指示飛ばしてただけ): [noimzip](https://github.com/noimzip)
