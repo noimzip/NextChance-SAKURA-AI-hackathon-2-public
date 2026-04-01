@@ -23,7 +23,10 @@ const INFINITE_RECURRENCE_HORIZON_DAYS = 365;
 
 interface UseScheduleReturn {
   schedules: ScheduleItem[];
-  addSchedule: (item: Omit<ScheduleItem, "id" | "completed" | "createdAt">) => void;
+  addSchedule: (
+    item: Omit<ScheduleItem, "id" | "completed" | "createdAt">,
+    options?: { idSeed?: number },
+  ) => void;
   updateSchedule: (
     id: string,
     updates: Omit<Partial<ScheduleItem>, "recurrence"> & {
@@ -208,7 +211,7 @@ export function useSchedule(): UseScheduleReturn {
   const normalizedSchedules = useMemo(() => schedules.map(normalizeDateFields), [schedules]);
 
   const addSchedule = useCallback(
-    (item: Omit<ScheduleItem, "id" | "completed" | "createdAt">) => {
+    (item: Omit<ScheduleItem, "id" | "completed" | "createdAt">, options?: { idSeed?: number }) => {
       const normalizedReminderOffsets = normalizeReminderOffsets(item.reminderOffsetsMinutes);
       const reminderOffsetsMinutes =
         item.reminderOffsetsMinutes === undefined
@@ -225,7 +228,7 @@ export function useSchedule(): UseScheduleReturn {
             : undefined,
       });
       setSchedules((prev) => {
-        const now = Date.now();
+        const now = options?.idSeed ?? Date.now();
         const createdAt = new Date();
         const mapped = recurringItems.map((entry, index) => ({
           ...entry,
@@ -635,6 +638,7 @@ function buildCalendarEventsByDate(
         isStart,
         isEnd,
         isMultiDay,
+        spanDays: totalDays,
         completed: item.completed,
         color,
         edgeColor: visibility === "busy" ? "#64748B" : getCalendarEdgeColor(item),
@@ -662,6 +666,11 @@ function buildCalendarEventsByDate(
       const aMultiDayPriority = a.mode === "schedule" && a.isMultiDay ? 0 : 1;
       const bMultiDayPriority = b.mode === "schedule" && b.isMultiDay ? 0 : 1;
       if (aMultiDayPriority !== bMultiDayPriority) return aMultiDayPriority - bMultiDayPriority;
+
+      if (a.mode === "schedule" && b.mode === "schedule" && a.isMultiDay && b.isMultiDay) {
+        const spanDiff = (b.spanDays ?? 1) - (a.spanDays ?? 1);
+        if (spanDiff !== 0) return spanDiff;
+      }
 
       if (a.completed !== b.completed) return a.completed ? 1 : -1;
 

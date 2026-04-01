@@ -133,6 +133,7 @@ export interface CalendarEvent {
   isStart: boolean; // First day of multi-day schedule
   isEnd: boolean; // Last day of multi-day schedule
   isMultiDay: boolean; // Whether this is a multi-day event
+  spanDays?: number; // Total number of days this event spans (for ordering)
   completed: boolean; // Whether the event is completed
   color?: string;
   edgeColor?: string; // Priority color for event edge (tag > item > mode)
@@ -140,6 +141,117 @@ export interface CalendarEvent {
   ownerDisplayName?: string;
   isOwnedByViewer?: boolean;
   visibility?: CalendarVisibility;
+}
+
+// Google Calendar API Types
+export interface GoogleOAuthToken {
+  accessToken: string;
+  tokenType: string;
+  scope: string;
+  expiresAt: number;
+  obtainedAt: number;
+}
+
+export interface GoogleOAuthTokenResponse {
+  access_token: string;
+  expires_in: number;
+  scope: string;
+  token_type: string;
+  error?: string;
+  error_description?: string;
+}
+
+export interface GoogleCalendarEventDateTime {
+  date?: string;
+  dateTime?: string;
+  timeZone?: string;
+}
+
+export interface GoogleCalendarEventAttendee {
+  email: string;
+  displayName?: string;
+  responseStatus?: "needsAction" | "declined" | "tentative" | "accepted";
+}
+
+export interface GoogleCalendarEventItem {
+  id: string;
+  etag?: string;
+  status?: string;
+  created?: string;
+  updated?: string;
+  summary?: string;
+  description?: string;
+  location?: string;
+  colorId?: string;
+  organizer?: {
+    email?: string;
+    displayName?: string;
+    self?: boolean;
+  };
+  htmlLink?: string;
+  start?: GoogleCalendarEventDateTime;
+  end?: GoogleCalendarEventDateTime;
+  recurrence?: string[];
+  recurringEventId?: string;
+  originalStartTime?: GoogleCalendarEventDateTime;
+  extendedProperties?: {
+    private?: Record<string, string>;
+    shared?: Record<string, string>;
+  };
+  attendees?: GoogleCalendarEventAttendee[];
+}
+
+export interface GoogleCalendarListEventsOptions {
+  calendarId?: string;
+  timeMin?: string;
+  timeMax?: string;
+  maxResults?: number;
+  singleEvents?: boolean;
+  showDeleted?: boolean;
+  updatedMin?: string;
+  pageToken?: string;
+  orderBy?: "startTime" | "updated";
+}
+
+export interface GoogleCalendarCreateEventInput {
+  calendarId?: string;
+  summary: string;
+  description?: string;
+  location?: string;
+  colorId?: string;
+  start: GoogleCalendarEventDateTime;
+  end: GoogleCalendarEventDateTime;
+  recurrence?: string[];
+  extendedProperties?: {
+    private?: Record<string, string>;
+    shared?: Record<string, string>;
+  };
+  attendees?: Pick<GoogleCalendarEventAttendee, "email" | "displayName">[];
+}
+
+export interface GoogleCalendarUpdateEventInput extends GoogleCalendarCreateEventInput {
+  eventId: string;
+}
+
+export interface GoogleCalendarCalendarListItem {
+  id: string;
+  summary?: string;
+  primary?: boolean;
+  accessRole?: "none" | "freeBusyReader" | "reader" | "writer" | "owner";
+  backgroundColor?: string;
+  foregroundColor?: string;
+  selected?: boolean;
+}
+
+export interface GoogleCalendarSyncConflict {
+  id: string;
+  scheduleId: string;
+  eventId: string;
+  calendarId: string;
+  scheduleTitle?: string;
+  remoteTitle?: string;
+  remoteUpdatedAt?: string;
+  detectedAt: string;
 }
 
 // Tag Types
@@ -197,6 +309,7 @@ export interface ScheduleItem {
   reminderOffsetsMinutes?: number[]; // Reminder offsets in minutes before due/start time
   allDayReminderTime?: string; // "HH:MM" base time used for all-day schedule reminders
   recurrence?: ScheduleRecurrenceRule;
+  googleCalendarId?: string; // Target Google Calendar id for per-item sync
   createdAt: Date;
 }
 

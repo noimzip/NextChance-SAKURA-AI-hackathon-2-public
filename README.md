@@ -66,6 +66,17 @@ Grass-Secretary は、**AI秘書 × スケジュール管理 × 努力可視化 
 - テーマ切替（ライト/ダーク/システム）
 - PWA対応（manifest + service worker）
 
+### 9. Google カレンダー双方向同期
+
+- `schedule` モードのみ同期対象（`task` は同期対象外）
+- 連携先カレンダーを選択可能（`primary` 固定ではない）
+- 予定追加/編集時に連携先Googleカレンダーを指定可能（予定ごとに保存）
+- ローカル変更の即時反映 + ポーリングによる自動取り込み + 手動同期に対応
+- 競合は自動マージせず検知して保持し、`ローカル優先 / Google優先` で手動解決
+- 片側削除は相手側へも反映（best effort）
+- 繰り返し予定は RRULE へ変換して可能な範囲で同期（best effort）
+- 予定色は可能な範囲でGoogleの `colorId` と相互変換して同期
+
 ## 技術スタック
 
 ### フロントエンド
@@ -147,12 +158,16 @@ vp dev
   さくらのAI Engine APIキー（`UUID:SECRET` 形式）
 - `VITE_SAKURA_AI_BASE_URL`  
   APIベースURL（通常は `https://api.ai.sakura.ad.jp/v1`）
+- `VITE_GOOGLE_CLIENT_ID`  
+  Google Cloud Console で発行した OAuth 2.0 Client ID（Web アプリ）
 
 ## 設計メモ（運用上の前提）
 
 - データは基本的に `localStorage` に保存されます
 - AIが提案した予定操作は即時反映せず、必ずユーザー確認後に反映します
 - 共有カレンダー表示では、閲覧権限に応じて詳細情報を秘匿します
+- Google 同期は Webhook ではなくクライアントポーリングで実現します
+- Google 未連携時は従来どおりローカル完結で動作します
 
 ## ロードマップ（短期〜中期）
 
