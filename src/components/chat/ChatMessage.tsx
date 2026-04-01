@@ -54,6 +54,8 @@ export function ChatMessage({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const hasImageAttachment = Boolean(message.imageAttachmentDataUrl);
+  const isStructuredJsonMessage =
+    message.requestMode === "generative_ui" || message.requestMode === "tailwind_theme";
   const canCopy = message.content.trim().length > 0;
 
   const handleCopyMessage = async () => {
@@ -183,7 +185,7 @@ export function ChatMessage({
             )}
           </div>
         </div>
-        {isAssistant && contentBlocks ? (
+        {isAssistant && contentBlocks && !isStructuredJsonMessage ? (
           <div className="space-y-3">
             {contentBlocks.map((block, index) => {
               if (block.type === "text") {

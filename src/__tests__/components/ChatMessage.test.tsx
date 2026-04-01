@@ -135,6 +135,42 @@ const status = "ready";
     expect(screen.getAllByAltText("bag.png").length).toBeGreaterThanOrEqual(1);
   });
 
+  test("renders generative_ui assistant JSON as plain text (not table)", () => {
+    const message = createAssistantMessage(
+      JSON.stringify({
+        layout: "grid",
+        theme: { mode: "light", primaryColor: "Future Dust" },
+        components: [{ type: "Calendar", props: { view: "day" }, priority: "high" }],
+      }),
+    );
+    message.requestMode = "generative_ui";
+
+    render(<ChatMessage message={message} />);
+
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByText(/"layout"/)).toBeInTheDocument();
+  });
+
+  test("renders tailwind_theme assistant JSON as plain text (not table)", () => {
+    const message = createAssistantMessage(
+      JSON.stringify({
+        colors: {
+          layeredDarks: { base: "#0B1220", surface: "#111B2E", elevated: "#17233A" },
+          background: "#0B1220",
+          primary: "#3B82F6",
+          primaryForeground: "#EAF2FF",
+        },
+        padding: { "3": "0.9rem", "4": "1.2rem", "6": "1.8rem", "8": "2.4rem" },
+      }),
+    );
+    message.requestMode = "tailwind_theme";
+
+    render(<ChatMessage message={message} />);
+
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByText(/"layeredDarks"/)).toBeInTheDocument();
+  });
+
   test("retries specific user message via per-message button", () => {
     const onRetryMessage = vi.fn();
     render(

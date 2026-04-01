@@ -517,6 +517,93 @@ describe("useSecretary", () => {
       expect(assistantMessage?.content).toMatch(/のだ|なのだ/);
     });
 
+    test("sendMessageAndGetReply should keep raw JSON for generative_ui trigger", async () => {
+      localStorage.clear();
+      mockedSendChatMessageWithContext.mockImplementationOnce(async () =>
+        JSON.stringify({
+          layout: "stack",
+          theme: { mode: "dark", primaryColor: "Future Dust" },
+          components: [{ type: "Calendar", props: { view: "day" }, priority: "high" }],
+        }),
+      );
+      const { result } = renderHook(() => useSecretary());
+      await waitFor(() => {
+        expect(result.current.threads.length).toBe(1);
+      });
+
+      await act(async () => {
+        await result.current.sendMessageAndGetReply(
+          "/gen-ui ユーザーの趣向: ミニマリズム\n現在の課題/要望: 今日の予定確認",
+        );
+      });
+
+      const call = mockedSendChatMessageWithContext.mock.calls.at(-1);
+      expect(call?.[2]).toMatchObject({
+        requestMode: "generative_ui",
+        userPreferences: "ミニマリズム",
+        currentNeed: "今日の予定確認",
+      });
+
+      const assistantMessage = result.current.messages.find(
+        (message) => message.role === "assistant",
+      );
+      expect(assistantMessage).toBeDefined();
+      expect(assistantMessage?.requestMode).toBe("generative_ui");
+      expect(assistantMessage?.content.trim().startsWith("{")).toBe(true);
+      expect(assistantMessage?.content).toContain('"layout"');
+      expect(assistantMessage?.actions).toBeUndefined();
+    });
+
+    test("sendMessageAndGetReply should keep raw JSON for tailwind_theme trigger", async () => {
+      localStorage.clear();
+      mockedSendChatMessageWithContext.mockImplementationOnce(async () =>
+        JSON.stringify({
+          colors: {
+            layeredDarks: {
+              base: "#0B1220",
+              surface: "#111B2E",
+              elevated: "#17233A",
+            },
+            background: "#0B1220",
+            primary: "#3B82F6",
+            primaryForeground: "#EAF2FF",
+          },
+          padding: {
+            "3": "0.9rem",
+            "4": "1.2rem",
+            "6": "1.8rem",
+            "8": "2.4rem",
+          },
+        }),
+      );
+      const { result } = renderHook(() => useSecretary());
+      await waitFor(() => {
+        expect(result.current.threads.length).toBe(1);
+      });
+
+      await act(async () => {
+        await result.current.sendMessageAndGetReply(
+          "/gen-theme ユーザーの趣向: 目に優しい\n現在の課題/要望: tailwind extend JSON",
+        );
+      });
+
+      const call = mockedSendChatMessageWithContext.mock.calls.at(-1);
+      expect(call?.[2]).toMatchObject({
+        requestMode: "tailwind_theme",
+        userPreferences: "目に優しい",
+        currentNeed: "tailwind extend JSON",
+      });
+
+      const assistantMessage = result.current.messages.find(
+        (message) => message.role === "assistant",
+      );
+      expect(assistantMessage).toBeDefined();
+      expect(assistantMessage?.requestMode).toBe("tailwind_theme");
+      expect(assistantMessage?.content.trim().startsWith("{")).toBe(true);
+      expect(assistantMessage?.content).toContain('"layeredDarks"');
+      expect(assistantMessage?.actions).toBeUndefined();
+    });
+
     test("sendMessageAndGetReply should pass selected model to chat service", async () => {
       localStorage.clear();
       const selectedModel: SecretaryModelId = "Qwen3-Coder-30B-A3B-Instruct";

@@ -1,5 +1,6 @@
 import { sakuraFetch } from "./sakuraAI";
 import type {
+  ChatRequestMode,
   ChatCompletionResponse,
   ChatMessage,
   PhotoCheckResult,
@@ -12,6 +13,8 @@ import {
   type SecretaryModelId,
 } from "@/lib/secretaryModels";
 import { requestChatCompletionWithRetry } from "@/lib/chatCompletion";
+import { buildGenerativeUiPrompt, parseGenerativeUiResponse } from "@/lib/generativeUi";
+import { buildTailwindThemePrompt, parseTailwindThemeResponse } from "@/lib/tailwindTheme";
 
 const SECRETARY_SYSTEM_PROMPT = `あなたは、ユーザーの努力を可視化し生活を支える有能な秘書エージェント「グラス・セクレタリー」です。
 ユーザーの日々のタスク管理、努力の芝、持ち物チェックを統合的に支援します。
@@ -235,6 +238,22 @@ const SECRETARY_VISION_DESCRIPTION_PROMPT = `
 - ユーザーが持ち物確認を求めている場合のみ、最後に「忘れ物チェック観点」を補足してください
 - このモードでは [ADD_SCHEDULE: ...] などのアクションタグを出力しないでください`;
 
+const GENERATIVE_UI_SYSTEM_PROMPT = `
+あなたは高度な「Generative UI アーキテクト」です。
+入力されたユーザー趣向・要望・履歴・文脈を分析し、UIレイアウトとコンポーネント構成を最適化してください。
+出力は先頭にJSONオブジェクトを含め、スキーマに厳密準拠してください。`.trim();
+
+const GENERATIVE_UI_SCHEMA_RETRY_PROMPT =
+  "前回の出力はスキーマ不一致でした。先頭にスキーマ準拠のJSONオブジェクトを必ず返してください。layout/theme/componentsの列挙値を守り、componentsは1件以上含めてください。";
+
+const TAILWIND_THEME_SYSTEM_PROMPT = `
+あなたは Tailwind CSS のテーマアーキテクトです。
+ユーザー趣向と要求制約に沿って、tailwind.config.js の theme.extend にそのまま流し込める JSON オブジェクトを生成してください。
+出力は先頭から末尾まで JSON のみとし、余計な説明文は含めないでください。`.trim();
+
+const TAILWIND_THEME_SCHEMA_RETRY_PROMPT =
+  '前回の出力はスキーマ不一致でした。JSONオブジェクトのみを返してください。必須キー: colors(layeredDarks.base/surface/elevated, background, primary, primaryForeground), padding("3","4","6","8" in rem).';
+
 function buildContextPrompt(context: SecretaryContext, latestUserMessage = ""): string {
   const reasonLabels: Record<string, string> = {
     overdue: "期限超過",
@@ -424,6 +443,69 @@ async function requestSecretaryChatCompletion(
   );
 }
 
+function getAssistantMessageOrThrow(response: ChatCompletionResponse): string {
+  const assistantMessage = response.choices[0]?.message?.content;
+  if (!assistantMessage) {
+    throw new Error("No response content from AI");
+  }
+  return assistantMessage;
+}
+
+async function requestGenerativeUiCompletionWithRetry(
+  request: Omit<ChatCompletionRequest, "max_tokens">,
+  requestedMaxTokens?: number,
+  signal?: AbortSignal,
+): Promise<string> {
+  return requestStructuredJsonCompletionWithRetry(
+    request,
+    requestedMaxTokens,
+    signal,
+    parseGenerativeUiResponse,
+    GENERATIVE_UI_SCHEMA_RETRY_PROMPT,
+    "Generative UI response validation failed after retry",
+  );
+}
+
+async function requestStructuredJsonCompletionWithRetry(
+  request: Omit<ChatCompletionRequest, "max_tokens">,
+  requestedMaxTokens: number | undefined,
+  signal: AbortSignal | undefined,
+  parseResponse: (content: string) => unknown,
+  retryPrompt: string,
+  errorPrefix: string,
+): Promise<string> {
+  const firstResponse = await requestSecretaryChatCompletion(request, requestedMaxTokens, signal);
+  const firstContent = getAssistantMessageOrThrow(firstResponse);
+
+  try {
+    const parsed = parseResponse(firstContent);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    const retryResponse = await requestSecretaryChatCompletion(
+      {
+        ...request,
+        temperature: 0.1,
+        messages: [
+          ...request.messages,
+          { role: "assistant", content: firstContent },
+          { role: "user", content: retryPrompt },
+        ],
+      },
+      requestedMaxTokens,
+      signal,
+    );
+    const retryContent = getAssistantMessageOrThrow(retryResponse);
+    try {
+      const parsed = parseResponse(retryContent);
+      return JSON.stringify(parsed, null, 2);
+    } catch (retryError) {
+      throw new Error(
+        `${errorPrefix}: ${retryError instanceof Error ? retryError.message : "unknown error"}`,
+      );
+    }
+  }
+}
+
 export async function sendChatMessage(
   messages: ChatMessage[],
   options: {
@@ -451,13 +533,7 @@ export async function sendChatMessage(
   };
 
   const response = await requestSecretaryChatCompletion(request, maxTokens, signal);
-
-  const assistantMessage = response.choices[0]?.message?.content;
-  if (!assistantMessage) {
-    throw new Error("No response content from AI");
-  }
-
-  return assistantMessage;
+  return getAssistantMessageOrThrow(response);
 }
 
 export async function sendChatMessageWithContext(
@@ -467,6 +543,9 @@ export async function sendChatMessageWithContext(
     model?: SecretaryModelId;
     temperature?: number;
     maxTokens?: number;
+    requestMode?: ChatRequestMode;
+    userPreferences?: string;
+    currentNeed?: string;
     imageAttachmentDataUrl?: string;
     latestPhotoCheckResult?: PhotoCheckResult | null;
     signal?: AbortSignal;
@@ -476,13 +555,66 @@ export async function sendChatMessageWithContext(
     model = DEFAULT_SECRETARY_MODEL,
     temperature = 0.7,
     maxTokens,
+    requestMode = "default",
+    userPreferences = "",
+    currentNeed,
     imageAttachmentDataUrl,
     latestPhotoCheckResult,
     signal,
   } = options;
-  const hasImageAttachment = Boolean(imageAttachmentDataUrl);
   const latestUserMessage =
     [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
+
+  if (requestMode === "generative_ui") {
+    const prompt = buildGenerativeUiPrompt({
+      userPreferences,
+      currentNeed: currentNeed ?? latestUserMessage,
+      messages,
+      context,
+    });
+
+    return requestGenerativeUiCompletionWithRetry(
+      {
+        model,
+        temperature: 0.2,
+        stream: false,
+        messages: [
+          { role: "system", content: GENERATIVE_UI_SYSTEM_PROMPT },
+          { role: "user", content: prompt },
+        ],
+      },
+      maxTokens,
+      signal,
+    );
+  }
+
+  if (requestMode === "tailwind_theme") {
+    const prompt = buildTailwindThemePrompt({
+      userPreferences,
+      currentNeed: currentNeed ?? latestUserMessage,
+      messages,
+      context,
+    });
+
+    return requestStructuredJsonCompletionWithRetry(
+      {
+        model,
+        temperature: 0.2,
+        stream: false,
+        messages: [
+          { role: "system", content: TAILWIND_THEME_SYSTEM_PROMPT },
+          { role: "user", content: prompt },
+        ],
+      },
+      maxTokens,
+      signal,
+      parseTailwindThemeResponse,
+      TAILWIND_THEME_SCHEMA_RETRY_PROMPT,
+      "Tailwind theme response validation failed after retry",
+    );
+  }
+
+  const hasImageAttachment = Boolean(imageAttachmentDataUrl);
   const resolvedModel = hasImageAttachment
     ? isSecretaryMultimodalModelId(model)
       ? model
@@ -539,13 +671,7 @@ export async function sendChatMessageWithContext(
   };
 
   const response = await requestSecretaryChatCompletion(request, maxTokens, signal);
-
-  const assistantMessage = response.choices[0]?.message?.content;
-  if (!assistantMessage) {
-    throw new Error("No response content from AI");
-  }
-
-  return assistantMessage;
+  return getAssistantMessageOrThrow(response);
 }
 
 export async function generateScheduleSuggestion(

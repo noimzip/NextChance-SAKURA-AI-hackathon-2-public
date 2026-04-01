@@ -263,4 +263,265 @@ describe("chatService vision mode", () => {
     systemPrompt = body.messages[0].content as string;
     expect(systemPrompt).toContain("明日の午後は雨予報なのだ。");
   });
+
+  it("returns validated JSON string for generative_ui mode", async () => {
+    mockedSakuraFetch.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              layout: "stack",
+              theme: { mode: "dark", primaryColor: "Midnight Iris" },
+              components: [
+                {
+                  type: "Calendar",
+                  props: { density: "compact", view: "day" },
+                  priority: "high",
+                },
+              ],
+            }),
+          },
+        },
+      ],
+    });
+    const messages: ChatMessage[] = [
+      {
+        id: "user-genui-1",
+        role: "user",
+        content: "今日の予定をすぐ見たい",
+        timestamp: new Date("2026-03-25T00:00:00.000Z"),
+      },
+    ];
+
+    const output = await sendChatMessageWithContext(messages, baseContext, {
+      model: "gpt-oss-120b",
+      requestMode: "generative_ui",
+      userPreferences: "ミニマリズム",
+      currentNeed: "今日の予定を確認",
+    });
+
+    expect(() => JSON.parse(output)).not.toThrow();
+    const parsed = JSON.parse(output) as {
+      layout: string;
+      theme: { mode: string; primaryColor: string };
+      components: Array<{ type: string; props: object; priority: string }>;
+    };
+    expect(parsed.layout).toBe("stack");
+    expect(parsed.theme.mode).toBe("dark");
+    expect(parsed.components[0]?.type).toBe("Calendar");
+
+    const firstCall = mockedSakuraFetch.mock.calls[0]?.[1]?.body;
+    expect(firstCall.messages[0].content).toContain("Generative UI アーキテクト");
+  });
+
+  it("retries once for generative_ui mode when first response is invalid", async () => {
+    mockedSakuraFetch
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: "これはJSONではありません" } }],
+      })
+      .mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                layout: "grid",
+                theme: { mode: "light", primaryColor: "Future Dust" },
+                components: [
+                  { type: "List", props: { density: "compact" }, priority: "high" },
+                  { type: "Button", props: { variant: "ghost" }, priority: "low" },
+                ],
+              }),
+            },
+          },
+        ],
+      });
+
+    const output = await sendChatMessageWithContext(
+      [
+        {
+          id: "user-genui-retry",
+          role: "user",
+          content: "UI提案して",
+          timestamp: new Date("2026-03-25T00:00:00.000Z"),
+        },
+      ],
+      baseContext,
+      {
+        model: "gpt-oss-120b",
+        requestMode: "generative_ui",
+      },
+    );
+
+    expect(mockedSakuraFetch).toHaveBeenCalledTimes(2);
+    const parsed = JSON.parse(output) as { layout: string };
+    expect(parsed.layout).toBe("grid");
+  });
+
+  it("throws error after one retry when generative_ui response stays invalid", async () => {
+    mockedSakuraFetch
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: "invalid first response" } }],
+      })
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: "still invalid response" } }],
+      });
+
+    await expect(
+      sendChatMessageWithContext(
+        [
+          {
+            id: "user-genui-fail",
+            role: "user",
+            content: "UIを提案して",
+            timestamp: new Date("2026-03-25T00:00:00.000Z"),
+          },
+        ],
+        baseContext,
+        {
+          model: "gpt-oss-120b",
+          requestMode: "generative_ui",
+        },
+      ),
+    ).rejects.toThrow("Generative UI response validation failed after retry");
+
+    expect(mockedSakuraFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns validated extend JSON for tailwind_theme mode", async () => {
+    mockedSakuraFetch.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              colors: {
+                layeredDarks: {
+                  base: "#0B1220",
+                  surface: "#111B2E",
+                  elevated: "#17233A",
+                },
+                background: "#0B1220",
+                primary: "#3B82F6",
+                primaryForeground: "#EAF2FF",
+              },
+              padding: {
+                "3": "0.9rem",
+                "4": "1.2rem",
+                "6": "1.8rem",
+                "8": "2.4rem",
+              },
+            }),
+          },
+        },
+      ],
+    });
+
+    const output = await sendChatMessageWithContext(
+      [
+        {
+          id: "user-theme-1",
+          role: "user",
+          content: "目に優しいテーマを作って",
+          timestamp: new Date("2026-03-25T00:00:00.000Z"),
+        },
+      ],
+      baseContext,
+      {
+        model: "gpt-oss-120b",
+        requestMode: "tailwind_theme",
+        userPreferences: "目に優しい・プロフェッショナル",
+        currentNeed: "tailwind.config.js の extend JSON",
+      },
+    );
+
+    const parsed = JSON.parse(output) as {
+      colors: { primary: string; layeredDarks: { base: string } };
+      padding: { "4": string };
+    };
+    expect(parsed.colors.primary).toBe("#3B82F6");
+    expect(parsed.colors.layeredDarks.base).toBe("#0B1220");
+    expect(parsed.padding["4"]).toBe("1.2rem");
+  });
+
+  it("retries once for tailwind_theme mode when first response is invalid", async () => {
+    mockedSakuraFetch
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: "not valid json for extend" } }],
+      })
+      .mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                colors: {
+                  layeredDarks: {
+                    base: "#0B1220",
+                    surface: "#111B2E",
+                    elevated: "#17233A",
+                  },
+                  background: "#0B1220",
+                  primary: "#4A7CCF",
+                  primaryForeground: "#EAF2FF",
+                },
+                padding: {
+                  "3": "0.9rem",
+                  "4": "1.2rem",
+                  "6": "1.8rem",
+                  "8": "2.4rem",
+                },
+              }),
+            },
+          },
+        ],
+      });
+
+    const output = await sendChatMessageWithContext(
+      [
+        {
+          id: "user-theme-retry",
+          role: "user",
+          content: "tailwind extend を作って",
+          timestamp: new Date("2026-03-25T00:00:00.000Z"),
+        },
+      ],
+      baseContext,
+      {
+        model: "gpt-oss-120b",
+        requestMode: "tailwind_theme",
+      },
+    );
+
+    expect(mockedSakuraFetch).toHaveBeenCalledTimes(2);
+    const parsed = JSON.parse(output) as { colors: { primary: string } };
+    expect(parsed.colors.primary).toBe("#4A7CCF");
+  });
+
+  it("throws error after one retry when tailwind_theme response stays invalid", async () => {
+    mockedSakuraFetch
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: "invalid first response" } }],
+      })
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: "still invalid response" } }],
+      });
+
+    await expect(
+      sendChatMessageWithContext(
+        [
+          {
+            id: "user-theme-fail",
+            role: "user",
+            content: "tailwind extend を提案して",
+            timestamp: new Date("2026-03-25T00:00:00.000Z"),
+          },
+        ],
+        baseContext,
+        {
+          model: "gpt-oss-120b",
+          requestMode: "tailwind_theme",
+        },
+      ),
+    ).rejects.toThrow("Tailwind theme response validation failed after retry");
+
+    expect(mockedSakuraFetch).toHaveBeenCalledTimes(2);
+  });
 });

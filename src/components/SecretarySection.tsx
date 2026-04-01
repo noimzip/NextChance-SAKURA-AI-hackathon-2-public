@@ -37,6 +37,16 @@ import { compressImageDataUrlForStorage, fileToDataUrl } from "@/services/photoA
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { generateNextPromptSuggestions } from "@/lib/nextPromptSuggestions";
 import {
+  isGenerativeUiRequest,
+  parseGenerativeUiInput,
+  stripGenerativeUiTrigger,
+} from "@/lib/generativeUi";
+import {
+  isTailwindThemeRequest,
+  parseTailwindThemeInput,
+  stripTailwindThemeTrigger,
+} from "@/lib/tailwindTheme";
+import {
   DEFAULT_SECRETARY_MODEL,
   getSecretaryModelOptionsForInput,
   normalizeSecretaryModelSelection,
@@ -1567,8 +1577,28 @@ export function SecretarySection({ className }: SecreatarySectionProps) {
 
   const handleSendMessage = useCallback(
     async (content: string) => {
-      const messageText = content.trim() || "この画像を説明してください。";
+      const rawMessageText = content.trim() || "この画像を説明してください。";
+      const isTailwindThemeMode = !hasPendingImage && isTailwindThemeRequest(rawMessageText);
+      const isGenerativeMode =
+        !isTailwindThemeMode && !hasPendingImage && isGenerativeUiRequest(rawMessageText);
+      const parsedStructuredInput = isTailwindThemeMode
+        ? parseTailwindThemeInput(rawMessageText)
+        : isGenerativeMode
+          ? parseGenerativeUiInput(rawMessageText)
+          : { userPreferences: "", currentNeed: "" };
+      const messageText = isTailwindThemeMode
+        ? stripTailwindThemeTrigger(rawMessageText)
+        : isGenerativeMode
+          ? stripGenerativeUiTrigger(rawMessageText)
+          : rawMessageText;
       await sendMessage(messageText, {
+        requestMode: isTailwindThemeMode
+          ? "tailwind_theme"
+          : isGenerativeMode
+            ? "generative_ui"
+            : "default",
+        userPreferences: parsedStructuredInput.userPreferences,
+        currentNeed: parsedStructuredInput.currentNeed,
         imageAttachmentDataUrl: pendingImageDataUrl ?? undefined,
         imageAttachmentName: pendingImageName ?? undefined,
       });
@@ -2133,6 +2163,8 @@ export function SecretarySection({ className }: SecreatarySectionProps) {
                       "明日14時に会議を追加して",
                       "期限が近いタスクは？",
                       "買い物タスクを完了にして",
+                      "/gen-ui ユーザーの趣向: ミニマリズム、情報量少なめ\n現在の課題/要望: 今日の予定を一目で確認したい",
+                      "/gen-theme ユーザーの趣向: 最近目が疲れているので、目に優しいけど仕事に集中できるプロフェッショナルな雰囲気にしたい\n現在の課題/要望: tailwind.config.js の extend 用JSONを生成して",
                     ].map((suggestion) => (
                       <Button
                         key={`starter-prompt-${suggestion}`}

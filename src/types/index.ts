@@ -1,9 +1,12 @@
 // Chat Message Types
+export type ChatRequestMode = "default" | "generative_ui" | "tailwind_theme";
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: Date;
+  requestMode?: ChatRequestMode;
   audioUrl?: string;
   hasImageAttachment?: boolean;
   imageAttachmentName?: string;
@@ -20,6 +23,53 @@ export interface ChatThread {
   lastExecutedAction: ExecutedAction | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export type GenerativeUILayout = "grid" | "stack";
+export type GenerativeUIThemeMode = "dark" | "light";
+export type GenerativeUIComponentType = "Card" | "List" | "Calendar" | "Chart" | "Button";
+export type GenerativeUIComponentPriority = "high" | "medium" | "low";
+
+export interface GenerativeUITheme {
+  mode: GenerativeUIThemeMode;
+  primaryColor: string;
+}
+
+export interface GenerativeUIComponentSpec {
+  type: GenerativeUIComponentType;
+  props: Record<string, unknown>;
+  priority: GenerativeUIComponentPriority;
+}
+
+export interface GenerativeUIOutput {
+  layout: GenerativeUILayout;
+  theme: GenerativeUITheme;
+  components: GenerativeUIComponentSpec[];
+}
+
+export interface TailwindThemeLayeredDarks {
+  base: string;
+  surface: string;
+  elevated: string;
+}
+
+export interface TailwindThemeColors {
+  layeredDarks: TailwindThemeLayeredDarks;
+  background: string;
+  primary: string;
+  primaryForeground: string;
+}
+
+export interface TailwindThemePaddingScale {
+  "3": string;
+  "4": string;
+  "6": string;
+  "8": string;
+}
+
+export interface TailwindThemeExtendOutput {
+  colors: TailwindThemeColors;
+  padding: TailwindThemePaddingScale;
 }
 
 // Calendar Sharing Types
