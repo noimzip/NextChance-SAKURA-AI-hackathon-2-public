@@ -11,6 +11,8 @@ import { checkScheduleConflicts, isOverdue } from "@/lib/scheduleConflicts";
 import { getVisibleScheduleConflicts } from "@/lib/conflictWarningFilter";
 import { fillMissingActionFields } from "@/lib/secretaryFieldFallback";
 import { formatSecretaryResponse } from "@/lib/secretaryResponse";
+import { isGenerativeUiRequest, parseGenerativeUiInput } from "@/lib/generativeUi";
+import { isTailwindThemeRequest, parseTailwindThemeInput } from "@/lib/tailwindTheme";
 import {
   DEFAULT_SECRETARY_MODEL,
   isSecretaryModelId,
@@ -18,6 +20,7 @@ import {
   type SecretaryModelId,
 } from "@/lib/secretaryModels";
 import type {
+  ChatRequestMode,
   ChatMessage,
   ChatThread,
   SecretaryAction,
@@ -199,6 +202,9 @@ interface SendMessageOptions {
   threadId?: string;
   imageAttachmentDataUrl?: string;
   imageAttachmentName?: string;
+  requestMode?: ChatRequestMode;
+  userPreferences?: string;
+  currentNeed?: string;
 }
 
 interface UseSecretaryOptions {
@@ -672,6 +678,10 @@ function normalizeChatMessage(message: ChatMessage): ChatMessage {
   return {
     ...message,
     timestamp: toDate(message.timestamp),
+    requestMode:
+      message.requestMode === "generative_ui" || message.requestMode === "tailwind_theme"
+        ? message.requestMode
+        : "default",
     imageAttachmentDataUrl,
     hasImageAttachment: Boolean(message.hasImageAttachment || imageAttachmentDataUrl),
   };
@@ -1109,6 +1119,7 @@ export function useSecretary(options: UseSecretaryOptions = {}): UseSecretaryRet
   const latestMessageRequestRef = useRef<{
     threadId: string;
     content: string;
+    requestMode: ChatRequestMode;
     imageAttachmentDataUrl?: string;
   } | null>(null);
 
@@ -1711,10 +1722,19 @@ export function useSecretary(options: UseSecretaryOptions = {}): UseSecretaryRet
           : activeThread) ?? null;
       if (!targetThread?.id) return null;
 
+      const inferredRequestMode =
+        options?.requestMode ??
+        (isTailwindThemeRequest(trimmedContent)
+          ? ("tailwind_theme" as const)
+          : isGenerativeUiRequest(trimmedContent)
+            ? ("generative_ui" as const)
+            : ("default" as const));
+
       const threadId = targetThread.id;
       const requestKey = {
         threadId,
         content: trimmedContent,
+        requestMode: inferredRequestMode,
         imageAttachmentDataUrl: options?.imageAttachmentDataUrl,
       };
       const latestRequest = latestMessageRequestRef.current;
@@ -1722,17 +1742,26 @@ export function useSecretary(options: UseSecretaryOptions = {}): UseSecretaryRet
         latestRequest &&
         latestRequest.threadId === requestKey.threadId &&
         latestRequest.content === requestKey.content &&
+        latestRequest.requestMode === requestKey.requestMode &&
         latestRequest.imageAttachmentDataUrl === requestKey.imageAttachmentDataUrl
       ) {
         return null;
       }
       latestMessageRequestRef.current = requestKey;
 
+      const parsedGenerativeInput =
+        inferredRequestMode === "generative_ui"
+          ? parseGenerativeUiInput(trimmedContent)
+          : inferredRequestMode === "tailwind_theme"
+            ? parseTailwindThemeInput(trimmedContent)
+            : { userPreferences: "", currentNeed: "" };
+
       const userMessage: ChatMessage = {
         id: `user-${threadId}-${Date.now()}`,
         role: "user",
         content: trimmedContent,
         timestamp: new Date(),
+        requestMode: inferredRequestMode,
         hasImageAttachment: Boolean(options?.imageAttachmentDataUrl),
         imageAttachmentName: options?.imageAttachmentName,
         imageAttachmentDataUrl: options?.imageAttachmentDataUrl,
@@ -1753,19 +1782,32 @@ export function useSecretary(options: UseSecretaryOptions = {}): UseSecretaryRet
       try {
         const response = await sendChatMessageWithContext(nextMessages, context, {
           model: selectedModel,
+          requestMode: inferredRequestMode,
+          userPreferences: options?.userPreferences ?? parsedGenerativeInput.userPreferences,
+          currentNeed: options?.currentNeed ?? parsedGenerativeInput.currentNeed,
           imageAttachmentDataUrl: options?.imageAttachmentDataUrl,
           latestPhotoCheckResult: loadLatestPhotoCheckResult(),
           signal: controller.signal,
         });
-        const { cleanContent, actions } = parseActionsFromResponse(response);
-        const actionsWithFallback = fillMissingActionFields(actions, userMessage.content);
-        const formattedContent = formatSecretaryResponse(cleanContent);
+
+        const isStructuredMode =
+          inferredRequestMode === "generative_ui" || inferredRequestMode === "tailwind_theme";
+        const { cleanContent, actions } = isStructuredMode
+          ? { cleanContent: response, actions: [] }
+          : parseActionsFromResponse(response);
+        const actionsWithFallback = isStructuredMode
+          ? []
+          : fillMissingActionFields(actions, userMessage.content);
+        const formattedContent = isStructuredMode
+          ? cleanContent
+          : formatSecretaryResponse(cleanContent);
 
         const assistantMessage: ChatMessage = {
           id: `assistant-${threadId}-${Date.now()}`,
           role: "assistant",
           content: formattedContent,
           timestamp: new Date(),
+          requestMode: inferredRequestMode,
           actions: actionsWithFallback.length > 0 ? actionsWithFallback : undefined,
         };
 
@@ -1774,7 +1816,7 @@ export function useSecretary(options: UseSecretaryOptions = {}): UseSecretaryRet
             ? thread.title
             : generateThreadTitle({
                 latestUserContent: userMessage.content,
-                latestAssistantContent: assistantMessage.content,
+                latestAssistantContent: isStructuredMode ? "" : assistantMessage.content,
                 fallbackTitle: thread.title,
               });
           return {
@@ -1791,7 +1833,7 @@ export function useSecretary(options: UseSecretaryOptions = {}): UseSecretaryRet
 
         addActivity({
           type: "ai_chat",
-          description: `${options?.imageAttachmentDataUrl ? "画像付き" : ""}AIとチャット: ${trimmedContent.slice(0, 20)}${trimmedContent.length > 20 ? "..." : ""}`,
+          description: `${options?.imageAttachmentDataUrl ? "画像付き" : ""}${inferredRequestMode === "generative_ui" ? "Generative UI" : inferredRequestMode === "tailwind_theme" ? "Tailwind Theme" : "AI"}チャット: ${trimmedContent.slice(0, 20)}${trimmedContent.length > 20 ? "..." : ""}`,
         });
 
         return formattedContent;
@@ -1808,6 +1850,7 @@ export function useSecretary(options: UseSecretaryOptions = {}): UseSecretaryRet
           latestRequest &&
           latestRequest.threadId === requestKey.threadId &&
           latestRequest.content === requestKey.content &&
+          latestRequest.requestMode === requestKey.requestMode &&
           latestRequest.imageAttachmentDataUrl === requestKey.imageAttachmentDataUrl
         ) {
           latestMessageRequestRef.current = null;
@@ -1838,6 +1881,7 @@ export function useSecretary(options: UseSecretaryOptions = {}): UseSecretaryRet
 
       return sendMessageAndGetReply(targetUserMessage.content, {
         threadId: activeThread.id,
+        requestMode: targetUserMessage.requestMode,
         imageAttachmentDataUrl: targetUserMessage.imageAttachmentDataUrl,
         imageAttachmentName: targetUserMessage.imageAttachmentName,
       });
