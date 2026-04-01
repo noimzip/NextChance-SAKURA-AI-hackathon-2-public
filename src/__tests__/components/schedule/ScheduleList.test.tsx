@@ -24,6 +24,7 @@ const mockResolvePublicRoleByToken =
 const mockDeleteSchedule = vi.fn();
 const mockDeleteTag = vi.fn();
 const mockRemoveMember = vi.fn();
+const mockGoogleSetSelectedCalendarId = vi.fn();
 
 let mockSchedules: ScheduleItem[] = [];
 let mockSharing: SharedCalendarMeta;
@@ -149,6 +150,41 @@ vi.mock("@/hooks/useWarningSettings", () => ({
   }),
 }));
 
+vi.mock("@/hooks/useGoogleCalendar", () => ({
+  useGoogleCalendar: () => ({
+    token: {
+      accessToken: "token",
+      tokenType: "Bearer",
+      scope: "https://www.googleapis.com/auth/calendar.events",
+      expiresAt: Date.now() + 3600 * 1000,
+      obtainedAt: Date.now(),
+    },
+    isAuthenticated: true,
+    isLoading: false,
+    isFetchingEvents: false,
+    isListingCalendars: false,
+    isCreatingEvent: false,
+    isUpdatingEvent: false,
+    isDeletingEvent: false,
+    calendars: [
+      { id: "primary", summary: "Primary" },
+      { id: "work", summary: "仕事" },
+    ],
+    selectedCalendarId: "primary",
+    events: [],
+    error: null,
+    login: vi.fn(async () => undefined),
+    logout: vi.fn(async () => undefined),
+    refreshCalendars: vi.fn(async () => []),
+    setSelectedCalendarId: mockGoogleSetSelectedCalendarId,
+    fetchEvents: vi.fn(async () => []),
+    createEvent: vi.fn(async () => ({ id: "event-1" })),
+    updateEvent: vi.fn(async () => ({ id: "event-1" })),
+    deleteEvent: vi.fn(async () => undefined),
+    clearError: vi.fn(),
+  }),
+}));
+
 vi.mock("@/components/schedule/ScheduleItem", () => ({
   ScheduleItem: ({ item, onDelete }: { item: ScheduleItem; onDelete: () => void }) => (
     <button data-testid={`delete-${item.id}`} onClick={onDelete}>
@@ -185,6 +221,10 @@ vi.mock("@/components/schedule/CalendarSharingPanel", () => ({
   ),
 }));
 
+vi.mock("@/components/schedule/GoogleCalendarAuthButton", () => ({
+  GoogleCalendarAuthButton: () => <div data-testid="google-calendar-auth-button">google-auth</div>,
+}));
+
 import { ScheduleList } from "@/components/schedule/ScheduleList";
 
 describe("ScheduleList share-token and conflict privacy behavior", () => {
@@ -197,6 +237,7 @@ describe("ScheduleList share-token and conflict privacy behavior", () => {
     mockDeleteSchedule.mockClear();
     mockDeleteTag.mockClear();
     mockRemoveMember.mockClear();
+    mockGoogleSetSelectedCalendarId.mockClear();
 
     mockSchedules = [
       createSchedule({
@@ -329,5 +370,17 @@ describe("ScheduleList share-token and conflict privacy behavior", () => {
     fireEvent.click(screen.getByRole("button", { name: "削除" }));
 
     expect(mockRemoveMember).toHaveBeenCalledWith("member-1");
+  });
+
+  test("shows Google calendar selector in add dialog and switches selected calendar", async () => {
+    render(<ScheduleList />);
+
+    fireEvent.click(screen.getByRole("button", { name: "追加" }));
+    fireEvent.click(screen.getByRole("button", { name: "予定" }));
+    fireEvent.change(screen.getAllByLabelText("Googleカレンダー")[0], {
+      target: { value: "work" },
+    });
+
+    expect(mockGoogleSetSelectedCalendarId).toHaveBeenCalledWith("work");
   });
 });

@@ -21,6 +21,7 @@ import { useTags, DEFAULT_COLORS } from "@/hooks/useTags";
 import { useEffortLog } from "@/hooks/useEffortLog";
 import { useWarningSettings } from "@/hooks/useWarningSettings";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
 import { checkScheduleConflicts, checkIsOverdueDate } from "@/lib/scheduleConflicts";
 import { getVisibleScheduleConflicts } from "@/lib/conflictWarningFilter";
 import {
@@ -29,6 +30,7 @@ import {
   resolveAccessContextForPublicLink,
 } from "@/lib/calendarPermissions";
 import { CalendarSharingPanel } from "./CalendarSharingPanel";
+import { GoogleCalendarAuthButton } from "./GoogleCalendarAuthButton";
 import {
   SCHEDULE_SORT_STORAGE_KEY,
   sortScheduleItems,
@@ -60,6 +62,7 @@ import {
   Share2,
 } from "lucide-react";
 import type {
+  GoogleCalendarCalendarListItem,
   CalendarAccessContext,
   RepeatWeekday,
   ScheduleConflict,
@@ -150,6 +153,12 @@ function formatRecurrenceSummary(recurrence?: ScheduleRecurrenceInput): string {
 }
 
 export function ScheduleList({ className, selectedDate, onDateSelect }: ScheduleListProps) {
+  const {
+    isAuthenticated: isGoogleAuthenticated,
+    calendars: googleCalendars,
+    selectedCalendarId,
+    setSelectedCalendarId: setGoogleSelectedCalendarId,
+  } = useGoogleCalendar();
   const {
     schedules,
     addSchedule,
@@ -257,6 +266,7 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
   const [newUrl, setNewUrl] = useState("");
   const [newNotes, setNewNotes] = useState("");
   const [newIsPrivate, setNewIsPrivate] = useState(false);
+  const [newGoogleCalendarId, setNewGoogleCalendarId] = useState("primary");
   const [sortMode, setSortMode] = useLocalStorage<ScheduleSortMode>(
     SCHEDULE_SORT_STORAGE_KEY,
     "date",
@@ -272,6 +282,13 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
     const token = new URLSearchParams(window.location.search).get("shareToken");
     return token ? token.trim() : null;
   }, []);
+
+  const scheduleGoogleCalendars = useMemo<GoogleCalendarCalendarListItem[]>(() => {
+    if (!isGoogleAuthenticated) {
+      return [];
+    }
+    return googleCalendars.length > 0 ? googleCalendars : [{ id: "primary", summary: "Primary" }];
+  }, [googleCalendars, isGoogleAuthenticated]);
 
   useEffect(() => {
     if (hasResolvedShareToken) {
@@ -289,6 +306,37 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
     }
     setHasResolvedShareToken(true);
   }, [hasResolvedShareToken, resolvePublicRoleByToken, shareTokenFromUrl]);
+
+  useEffect(() => {
+    if (!isGoogleAuthenticated) {
+      return;
+    }
+    setNewGoogleCalendarId((prev) => prev || selectedCalendarId || "primary");
+  }, [isGoogleAuthenticated, selectedCalendarId]);
+
+  useEffect(() => {
+    if (!isGoogleAuthenticated || !newGoogleCalendarId) {
+      return;
+    }
+    if (currentMode !== "schedule") {
+      return;
+    }
+    if (!isAddingSchedule && !isEditingSchedule) {
+      return;
+    }
+    if (selectedCalendarId === newGoogleCalendarId) {
+      return;
+    }
+    setGoogleSelectedCalendarId(newGoogleCalendarId);
+  }, [
+    currentMode,
+    isAddingSchedule,
+    isEditingSchedule,
+    isGoogleAuthenticated,
+    newGoogleCalendarId,
+    selectedCalendarId,
+    setGoogleSelectedCalendarId,
+  ]);
 
   const selectedAccessContext = useMemo<CalendarAccessContext>(() => {
     if (activeViewerMode === "owner") {
@@ -600,6 +648,7 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
     setNewUrl("");
     setNewNotes("");
     setNewIsPrivate(false);
+    setNewGoogleCalendarId(selectedCalendarId || "primary");
     setNewRepeatWeekdays([]);
     setNewRepeatMode("finite");
     setNewRepeatCount("8");
@@ -691,6 +740,7 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
     setNewUrl(schedule.url || "");
     setNewNotes(schedule.notes || "");
     setNewIsPrivate(Boolean(schedule.isPrivate));
+    setNewGoogleCalendarId(schedule.googleCalendarId || selectedCalendarId || "primary");
     setNewRepeatWeekdays(schedule.recurrence?.weekdays ?? []);
     setNewRepeatMode(schedule.recurrence?.isInfinite ? "infinite" : "finite");
     setNewRepeatCount(schedule.recurrence?.count ? String(schedule.recurrence.count) : "8");
@@ -763,6 +813,17 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
     setPendingDeleteMemberId(null);
   };
 
+  const openAddScheduleModal = useCallback(
+    (initialDate?: Date | null) => {
+      setNewGoogleCalendarId(selectedCalendarId || "primary");
+      if (initialDate) {
+        setNewDueDate(formatDateKey(initialDate));
+      }
+      setIsAddingSchedule(true);
+    },
+    [selectedCalendarId],
+  );
+
   const handleAdd = () => {
     if (!canMutateSchedules) return;
     if (!newTitle.trim()) return;
@@ -802,6 +863,10 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
       url: newUrl.trim() || undefined,
       notes: newNotes.trim() || undefined,
       isPrivate: newIsPrivate,
+      googleCalendarId:
+        currentMode === "schedule" && isGoogleAuthenticated
+          ? newGoogleCalendarId || selectedCalendarId || "primary"
+          : undefined,
       recurrence: normalizedRecurrence,
       reminderOffsetsMinutes: normalizedReminderOffsets,
       allDayReminderTime,
@@ -861,6 +926,10 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
       url: newUrl.trim() || undefined,
       notes: newNotes.trim() || undefined,
       isPrivate: newIsPrivate,
+      googleCalendarId:
+        currentMode === "schedule" && isGoogleAuthenticated
+          ? newGoogleCalendarId || selectedCalendarId || "primary"
+          : undefined,
       recurrence: normalizedRecurrence ?? undefined,
       reminderOffsetsMinutes: normalizedReminderOffsets,
       allDayReminderTime,
@@ -902,6 +971,13 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
           </span>
         </CardTitle>
         <div className="flex gap-2 items-center">
+          <GoogleCalendarAuthButton
+            className="mr-2 hidden lg:flex"
+            schedules={schedules}
+            addSchedule={addSchedule}
+            updateSchedule={updateSchedule}
+            deleteSchedule={deleteSchedule}
+          />
           <Button variant="outline" size="sm" onClick={() => setShowTagManager(true)}>
             <Tag className="h-4 w-4 mr-1" />
             タグ
@@ -913,7 +989,7 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
           <Button
             variant="default"
             size="sm"
-            onClick={() => setIsAddingSchedule(true)}
+            onClick={() => openAddScheduleModal()}
             disabled={!canMutateSchedules}
           >
             <Plus className="h-4 w-4 mr-1" />
@@ -1437,6 +1513,30 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
                   ))}
                 </div>
               </div>
+              {isGoogleAuthenticated && currentMode === "schedule" && (
+                <div className="space-y-2">
+                  <label
+                    htmlFor="add-google-calendar-id"
+                    className="text-xs font-medium text-muted-foreground"
+                  >
+                    Googleカレンダー
+                  </label>
+                  <select
+                    id="add-google-calendar-id"
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs"
+                    value={newGoogleCalendarId}
+                    onChange={(event) => {
+                      setNewGoogleCalendarId(event.target.value);
+                    }}
+                  >
+                    {scheduleGoogleCalendars.map((calendar) => (
+                      <option key={calendar.id} value={calendar.id}>
+                        {calendar.summary || calendar.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Extended fields section */}
               <div className="border-t pt-4 mt-4">
@@ -1928,6 +2028,30 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
                   ))}
                 </div>
               </div>
+              {isGoogleAuthenticated && currentMode === "schedule" && (
+                <div className="space-y-2">
+                  <label
+                    htmlFor="edit-google-calendar-id"
+                    className="text-xs font-medium text-muted-foreground"
+                  >
+                    Googleカレンダー
+                  </label>
+                  <select
+                    id="edit-google-calendar-id"
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs"
+                    value={newGoogleCalendarId}
+                    onChange={(event) => {
+                      setNewGoogleCalendarId(event.target.value);
+                    }}
+                  >
+                    {scheduleGoogleCalendars.map((calendar) => (
+                      <option key={calendar.id} value={calendar.id}>
+                        {calendar.summary || calendar.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Extended fields section */}
               <div className="border-t pt-4 mt-4">
@@ -2139,8 +2263,7 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
                       if (!canMutateSchedules) {
                         return;
                       }
-                      setNewDueDate(formatDateKey(selectedDate!));
-                      setIsAddingSchedule(true);
+                      openAddScheduleModal(selectedDate);
                     }}
                   >
                     <Plus className="h-4 w-4 mr-1" />
@@ -2209,7 +2332,7 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
                       if (!canMutateSchedules) {
                         return;
                       }
-                      setIsAddingSchedule(true);
+                      openAddScheduleModal();
                     }}
                   >
                     <Plus className="h-4 w-4 mr-1" />

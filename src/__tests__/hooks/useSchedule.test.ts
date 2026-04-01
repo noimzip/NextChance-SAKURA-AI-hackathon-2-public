@@ -802,6 +802,40 @@ describe("useSchedule", () => {
     ]);
   });
 
+  it("should prioritize longer multi-day schedules when overlaps occur", () => {
+    const { result } = renderHook(() => useSchedule());
+
+    act(() => {
+      result.current.addSchedule({
+        title: "3-day Schedule",
+        mode: "schedule",
+        dueDate: new Date("2025-01-09T10:00:00.000Z"),
+        endDate: new Date("2025-01-11T10:00:00.000Z"),
+        tags: [],
+      });
+      result.current.addSchedule({
+        title: "5-day Schedule",
+        mode: "schedule",
+        dueDate: new Date("2025-01-08T09:00:00.000Z"),
+        endDate: new Date("2025-01-12T09:00:00.000Z"),
+        tags: [],
+      });
+      result.current.addSchedule({
+        title: "2-day Schedule",
+        mode: "schedule",
+        dueDate: new Date("2025-01-10T08:00:00.000Z"),
+        endDate: new Date("2025-01-11T08:00:00.000Z"),
+        tags: [],
+      });
+    });
+
+    const events = result.current.getCalendarEventsByDate().get("2025-01-10");
+    expect(events).toBeDefined();
+    expect(
+      events?.filter((event) => event.mode === "schedule").map((event) => event.title),
+    ).toEqual(["5-day Schedule", "3-day Schedule", "2-day Schedule"]);
+  });
+
   it("should distinguish ownership colors for owner access", () => {
     const { result } = renderHook(() => useSchedule());
 
