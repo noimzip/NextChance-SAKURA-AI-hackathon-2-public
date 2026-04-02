@@ -15,6 +15,7 @@ import {
 import { Calendar, formatDateKey } from "@/components/ui/calendar";
 import { ScheduleItem } from "./ScheduleItem";
 import { ScheduleDetailModal } from "./ScheduleDetailModal";
+import { ScreenshotImporter } from "@/features/import/ScreenshotImporter";
 import { useSchedule } from "@/hooks/useSchedule";
 import { useCalendarSharing } from "@/hooks/useCalendarSharing";
 import { useTags, DEFAULT_COLORS } from "@/hooks/useTags";
@@ -60,6 +61,7 @@ import {
   BellOff,
   Settings,
   Share2,
+  ImagePlus,
 } from "lucide-react";
 import type {
   GoogleCalendarCalendarListItem,
@@ -216,6 +218,7 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
 
   const [isAddingSchedule, setIsAddingSchedule] = useState(false);
   const [isEditingSchedule, setIsEditingSchedule] = useState(false);
+  const [showScreenshotImporter, setShowScreenshotImporter] = useState(false);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [viewingScheduleId, setViewingScheduleId] = useState<string | null>(null);
   const [showWarningSettings, setShowWarningSettings] = useState(false);
@@ -959,6 +962,17 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
     toggleComplete(id);
   };
 
+  const handleImportedFromScreenshot = (count: number) => {
+    addActivity({
+      type: "schedule_create",
+      description: `TimeTreeスクリーンショットから${count}件の予定を取り込み`,
+      metadata: {
+        scheduleMode: "schedule",
+        tags: [],
+      },
+    });
+  };
+
   return (
     <Card className={cn("flex flex-col", className)}>
       <CardHeader className="flex-shrink-0 flex flex-row items-center justify-between space-y-0 pb-4 border-b bg-gradient-to-r from-emerald-50/80 to-transparent">
@@ -985,6 +999,15 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
           <Button variant="outline" size="sm" onClick={() => setShowSharingPanel(true)}>
             <Share2 className="h-4 w-4 mr-1" />
             共有
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowScreenshotImporter(true)}
+            disabled={!canMutateSchedules}
+          >
+            <ImagePlus className="h-4 w-4 mr-1" />
+            画像取込
           </Button>
           <Button
             variant="default"
@@ -2661,6 +2684,16 @@ export function ScheduleList({ className, selectedDate, onDateSelect }: Schedule
           regeneratePublicLinkToken();
         }}
         publicShareUrl={getPublicShareUrl()}
+      />
+
+      <ScreenshotImporter
+        open={showScreenshotImporter}
+        onOpenChange={setShowScreenshotImporter}
+        schedules={schedules}
+        tags={tags}
+        addTag={addTag}
+        addSchedule={addSchedule}
+        onImported={handleImportedFromScreenshot}
       />
 
       {/* Schedule Detail Modal */}
